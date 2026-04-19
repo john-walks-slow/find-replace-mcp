@@ -15,7 +15,7 @@
 }
 ```
 
-依赖 [ripgrep](https://github.com/BurntSushi/ripgrep)，确保 `rg` 命令可用。
+不再依赖外部 `rg` 可执行文件，直接使用 Node.js 文件遍历与 glob 匹配。
 
 ## 参数
 

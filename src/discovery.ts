@@ -1,8 +1,22 @@
-import { spawn } from 'node:child_process';
+import { promises as fs } from 'node:fs';
 import path from 'node:path';
+import ignore, { type Ignore } from 'ignore';
+import picomatch from 'picomatch';
 
 import { DEFAULT_MAX_FILE_BYTES, type CandidateFile, type SearchConfig } from './types.js';
 import { normalizePath } from './utils.js';
+
+const MAX_FILE_BYTES = parseMaxFileBytes(DEFAULT_MAX_FILE_BYTES);
+
+type IgnoreFile = {
+  directory: string;
+  matcher: Ignore;
+};
+
+type WalkFrame = {
+  directory: string;
+  inheritedIgnores: IgnoreFile[];
+};
 
 export async function discoverCandidateFiles(config: SearchConfig): Promise<CandidateFile[]> {
   if (config.filePath) {
@@ -14,50 +28,108 @@ export async function discoverCandidateFiles(config: SearchConfig): Promise<Cand
     ];
   }
 
-  const args = ['--files', '--no-config'];
-  if (!config.useGitIgnore) {
-    args.push('--no-ignore');
-  }
-  args.push('--max-filesize', DEFAULT_MAX_FILE_BYTES);
-  for (const pattern of config.include) {
-    args.push('--glob', pattern);
-  }
-  for (const pattern of config.exclude) {
-    args.push('--glob', `!${pattern}`);
-  }
-  args.push('.');
+  const files: CandidateFile[] = [];
+  const stack: WalkFrame[] = [{ directory: config.basePath, inheritedIgnores: [] }];
+  const includeMatchers = config.include.map((pattern) => picomatch(pattern));
+  const excludeMatchers = config.exclude.map((pattern) => picomatch(pattern));
 
-  return new Promise((resolve, reject) => {
-    const child = spawn('rg', args, {
-      cwd: config.basePath,
-      stdio: ['ignore', 'pipe', 'pipe']
-    });
+  while (stack.length > 0) {
+    const frame = stack.pop()!;
+    const localIgnore = config.useGitIgnore ? await loadIgnoreFile(frame.directory) : null;
+    const activeIgnores = localIgnore ? [...frame.inheritedIgnores, localIgnore] : frame.inheritedIgnores;
+    const entries = await fs.readdir(frame.directory, { withFileTypes: true });
 
-    const files: CandidateFile[] = [];
-    let stdout = '';
-    let stderr = '';
-
-    child.stdout.on('data', (chunk: Buffer | string) => {
-      stdout += chunk.toString();
-    });
-    child.stderr.on('data', (chunk: Buffer | string) => {
-      stderr += chunk.toString();
-    });
-    child.on('error', (error) => reject(new Error(`Failed to start ripgrep: ${error.message}`)));
-    child.on('close', (code) => {
-      if (code !== 0 && code !== 1) {
-        reject(new Error(stderr.trim() || `ripgrep exited with code ${code}`));
-        return;
+    for (const entry of entries) {
+      if (entry.name === '.git' || entry.name === '.gitignore' || entry.isSymbolicLink()) {
+        continue;
       }
-      for (const line of stdout.split(/\r?\n/)) {
-        const trimmed = line.trim();
-        if (!trimmed) {
+
+      const absolutePath = path.join(frame.directory, entry.name);
+      const relativePath = normalizePath(path.relative(config.basePath, absolutePath));
+
+      if (entry.isDirectory()) {
+        if (config.useGitIgnore && isIgnoredByGitignore(activeIgnores, absolutePath, true)) {
           continue;
         }
-        const filePath = normalizePath(trimmed.replace(/^\.\//, ''));
-        files.push({ filePath, absolutePath: path.resolve(config.basePath, trimmed) });
+        stack.push({ directory: absolutePath, inheritedIgnores: activeIgnores });
+        continue;
       }
-      resolve(files);
-    });
-  });
+
+      if (!entry.isFile()) {
+        continue;
+      }
+      if (config.useGitIgnore && isIgnoredByGitignore(activeIgnores, absolutePath, false)) {
+        continue;
+      }
+      if (!matchesIncludeExclude(relativePath, includeMatchers, excludeMatchers)) {
+        continue;
+      }
+
+      const stat = await fs.stat(absolutePath);
+      if (stat.size > MAX_FILE_BYTES) {
+        continue;
+      }
+
+      files.push({ filePath: relativePath, absolutePath });
+    }
+  }
+
+  files.sort((a, b) => a.filePath.localeCompare(b.filePath));
+  return files;
+}
+
+async function loadIgnoreFile(directory: string): Promise<IgnoreFile | null> {
+  const ignorePath = path.join(directory, '.gitignore');
+  const content = await fs.readFile(ignorePath, 'utf8').catch(() => null);
+  if (content === null) {
+    return null;
+  }
+
+  return {
+    directory,
+    matcher: ignore().add(content)
+  };
+}
+
+function isIgnoredByGitignore(ignoreStack: IgnoreFile[], absolutePath: string, isDirectory: boolean): boolean {
+  for (let index = ignoreStack.length - 1; index >= 0; index -= 1) {
+    const ignoreFile = ignoreStack[index]!;
+    const relativeToIgnoreDir = normalizePath(path.relative(ignoreFile.directory, absolutePath));
+    if (!relativeToIgnoreDir || relativeToIgnoreDir.startsWith('../')) {
+      continue;
+    }
+
+    const candidate = isDirectory ? `${relativeToIgnoreDir}/` : relativeToIgnoreDir;
+    if (ignoreFile.matcher.ignores(candidate)) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+function matchesIncludeExclude(
+  filePath: string,
+  include: Array<(input: string) => boolean>,
+  exclude: Array<(input: string) => boolean>
+): boolean {
+  if (include.length > 0 && !include.some((matcher) => matcher(filePath))) {
+    return false;
+  }
+  if (exclude.some((matcher) => matcher(filePath))) {
+    return false;
+  }
+  return true;
+}
+
+function parseMaxFileBytes(value: string): number {
+  const match = /^(\d+)([kmg])?$/i.exec(value.trim());
+  if (!match) {
+    throw new Error(`Unsupported DEFAULT_MAX_FILE_BYTES format: ${value}`);
+  }
+
+  const base = Number(match[1]);
+  const suffix = match[2]?.toLowerCase();
+  const multiplier = suffix === 'k' ? 1024 : suffix === 'm' ? 1024 * 1024 : suffix === 'g' ? 1024 * 1024 * 1024 : 1;
+  return base * multiplier;
 }

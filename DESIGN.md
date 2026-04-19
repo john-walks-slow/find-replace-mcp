@@ -6,16 +6,16 @@ Build a simple but strong MCP server that feels like IDE `find in files` / `repl
 
 ## Key decisions
 
-### 1. ripgrep as the search engine
+### 1. native Node.js file discovery
 
-Instead of recursively walking files in TypeScript, the server shells out to `rg --json`.
+Instead of shelling out to `rg`, the server discovers files with Node.js and applies include/exclude plus `.gitignore` filtering in-process.
 
 Benefits:
 
-- much better performance on real repositories
-- `.gitignore` behavior matches developer expectations
-- binary files are skipped by default
-- glob include/exclude behavior is mature and predictable
+- no external binary dependency
+- behavior is fully controlled inside the server
+- include/exclude and file size filtering happen in one pipeline
+- `.gitignore` support remains available for common repository workflows
 
 ### 2. replace is always staged
 

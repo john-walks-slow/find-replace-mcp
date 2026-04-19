@@ -601,6 +601,59 @@ test('literal workspace search now uses the unified text pipeline and still resp
   }
 });
 
+test('workspace search can opt out of .gitignore filtering', async () => {
+  const project = await makeTempProject();
+  try {
+    await mkdir(path.join(project.dir, 'src'), { recursive: true });
+    await execFileAsync('git', ['init', '-q'], { cwd: project.dir });
+    await writeFile(path.join(project.dir, '.gitignore'), 'ignored.txt\n');
+    await writeFile(path.join(project.dir, 'src', 'good.txt'), 'foo\n');
+    await writeFile(path.join(project.dir, 'ignored.txt'), 'foo\n');
+
+    await withClient(project.dir, async (client) => {
+      const result = await client.callTool({
+        name: 'find_in_files',
+        arguments: {
+          query: 'foo',
+          useGitIgnore: false
+        }
+      });
+
+      assert.equal(result.isError, undefined);
+      assert.equal(result.structuredContent.summary.counts.totalMatches, 2);
+      assert.deepEqual(result.structuredContent.files.map((item) => item.filePath), ['ignored.txt', 'src/good.txt']);
+    });
+  } finally {
+    await project.cleanup();
+  }
+});
+
+test('workspace search respects nested .gitignore rules', async () => {
+  const project = await makeTempProject();
+  try {
+    await mkdir(path.join(project.dir, 'src', 'nested'), { recursive: true });
+    await execFileAsync('git', ['init', '-q'], { cwd: project.dir });
+    await writeFile(path.join(project.dir, 'src', '.gitignore'), 'nested/hidden.txt\n');
+    await writeFile(path.join(project.dir, 'src', 'visible.txt'), 'foo\n');
+    await writeFile(path.join(project.dir, 'src', 'nested', 'hidden.txt'), 'foo\n');
+
+    await withClient(project.dir, async (client) => {
+      const result = await client.callTool({
+        name: 'find_in_files',
+        arguments: {
+          query: 'foo'
+        }
+      });
+
+      assert.equal(result.isError, undefined);
+      assert.equal(result.structuredContent.summary.counts.totalMatches, 1);
+      assert.deepEqual(result.structuredContent.files.map((item) => item.filePath), ['src/visible.txt']);
+    });
+  } finally {
+    await project.cleanup();
+  }
+});
+
 
 test('atomic write cleans up temp file if rename fails', async (t) => {
   const project = await makeTempProject();
