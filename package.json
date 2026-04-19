@@ -1,0 +1,38 @@
+{
+  "name": "smart-find-replace-mcp",
+  "version": "0.7.2",
+  "private": true,
+  "type": "module",
+  "description": "Simple and strong MCP server for IDE-grade find in files and staged replace in files",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/john-walks-slow/find-replace-mcp.git"
+  },
+  "homepage": "https://github.com/john-walks-slow/find-replace-mcp#readme",
+  "bugs": {
+    "url": "https://github.com/john-walks-slow/find-replace-mcp/issues"
+  },
+  "bin": {
+    "smart-find-replace-mcp": "./dist/index.js"
+  },
+  "scripts": {
+    "build": "node node_modules/typescript/lib/tsc.js -p tsconfig.json",
+    "start": "node dist/index.js",
+    "dev": "node --loader ts-node/esm src/index.ts",
+    "pretest": "npm run build",
+    "test": "node --test tests/*.test.mjs"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "iconv-lite": "^0.7.2",
+    "zod": "^3.23.8"
+  },
+  "overrides": {
+    "hono": "^4.12.14"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.21",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.8.3"
+  }
+}

@@ -1,0 +1,12 @@
+smart-find-replace-mcp v0.7.2
+
+Validation status:
+- npm run build: PASS
+- npm test: PASS
+- Tests passed: 14 / 14
+
+Release-prep updates in v0.7.2:
+- Normalize repo-relative file paths so structured output stays `src/...` instead of `./src/...`
+- Fix the Windows ESM dynamic import regression test by importing `dist/file-io.js` via file URL
+- Pin the transitive `hono` dependency to `4.12.14` to clear the published moderate-severity advisory
+- Refresh release docs, add `.gitignore`, and add a reusable MCP config sample

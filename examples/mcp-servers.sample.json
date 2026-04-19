@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "smart-find-replace": {
+      "command": "node",
+      "args": [
+        "/absolute/path/to/find-replace-mcp/dist/index.js"
+      ],
+      "cwd": "/absolute/path/to/project-you-want-to-search"
+    }
+  }
+}
