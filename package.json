@@ -1,7 +1,7 @@
 {
   "name": "smart-find-replace-mcp",
   "version": "0.7.2",
-  "private": true,
+  "private": false,
   "type": "module",
   "description": "Simple and strong MCP server for IDE-grade find in files and staged replace in files",
   "repository": {
@@ -17,6 +17,7 @@
   },
   "scripts": {
     "build": "node node_modules/typescript/lib/tsc.js -p tsconfig.json",
+    "postinstall": "npm run build",
     "start": "node dist/index.js",
     "dev": "node --loader ts-node/esm src/index.ts",
     "pretest": "npm run build",
