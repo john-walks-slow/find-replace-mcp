@@ -37,17 +37,38 @@ import { fileUriToPath } from './utils.js';
 const sessionStore = new SessionStore();
 
 const commonFindSchema = {
-  query: z.string().min(1),
-  basePath: z.string().optional(),
-  filePath: z.string().optional(),
-  include: z.array(z.string()).optional(),
-  exclude: z.array(z.string()).optional(),
-  regex: z.boolean().optional(),
-  wholeWord: z.boolean().optional(),
-  caseSensitive: z.boolean().optional(),
-  useGitIgnore: z.boolean().optional(),
-  maxPreviewMatches: z.number().int().positive().max(5000).optional(),
-  encoding: z.enum(SUPPORTED_ENCODINGS).optional()
+  query: z.string().min(1).describe('Text or regex pattern to search for.'),
+  basePath: z
+    .string()
+    .optional()
+    .describe('Optional search root directory. Defaults to the client root or current working directory. filePath, include, and exclude are resolved relative to this directory.'),
+  filePath: z
+    .string()
+    .optional()
+    .describe('Optional single-file scope relative to basePath. Use this to search or replace only one file instead of scanning the whole basePath.'),
+  include: z
+    .array(z.string())
+    .optional()
+    .describe('Optional glob allowlist relative to basePath. If provided, only matching files are searched.'),
+  exclude: z
+    .array(z.string())
+    .optional()
+    .describe('Optional glob denylist relative to basePath. Matching files are skipped after include filtering.'),
+  regex: z.boolean().optional().describe('Interpret query as a JavaScript regular expression. Default: false.'),
+  wholeWord: z.boolean().optional().describe('Match whole words only in literal mode. Default: false.'),
+  caseSensitive: z.boolean().optional().describe('Use case-sensitive matching. Default: false.'),
+  useGitIgnore: z
+    .boolean()
+    .optional()
+    .describe('Whether .gitignore rules should be applied while scanning basePath. Default: true. Set false to search ignored files too.'),
+  maxPreviewMatches: z
+    .number()
+    .int()
+    .positive()
+    .max(5000)
+    .optional()
+    .describe('Maximum number of matches to include in a replace preview before the server requires a narrower query.'),
+  encoding: z.enum(SUPPORTED_ENCODINGS).optional().describe('Optional explicit text encoding for non-UTF files.')
 };
 
 export function createServer(): McpServer {
@@ -59,7 +80,7 @@ export function createServer(): McpServer {
         'Replace is always two-step: prepare_replace_in_files first, then apply_replace_in_files with the returned sessionId.',
         'Literal and regex modes both use one text-semantic pipeline end-to-end for find, preview, and apply.',
         `Text decoding keeps the original encoding for supported files and writes back in that same encoding. ${ENCODING_HINT}`,
-        'Ripgrep is used only for file discovery and ignore rules, not as the find/replace truth source.',
+        'File discovery happens inside Node.js. Search scope can be controlled with basePath, filePath, include, exclude, and useGitIgnore.',
         'Never attempt replacement without a valid preview session.',
         'If prepare_replace_in_files says previewComplete is false or applyAllowed is false, you must refine the query or scope first.'
       ].join(' ')
@@ -84,7 +105,7 @@ export function createServer(): McpServer {
     {
       title: 'Find In Files',
       description:
-        'Search from the current directory by default, or a specific basePath/filePath. Supports include, exclude, regex, whole-word, and case-sensitive search.',
+        'Search under basePath by default, or restrict to one file with filePath. include/exclude are relative to basePath, and useGitIgnore controls whether ignored files are skipped.',
       inputSchema: commonFindSchema,
       annotations: { title: 'Find In Files', readOnlyHint: true, idempotentHint: true, destructiveHint: false }
     },
@@ -107,7 +128,7 @@ export function createServer(): McpServer {
     'prepare_replace_in_files',
     {
       title: 'Prepare Replace In Files',
-      description: 'Preview every replace candidate first. Replacement is blocked unless the preview is complete.',
+      description: 'Preview every replace candidate first. basePath sets the root, filePath narrows to one file, and useGitIgnore decides whether ignored files are included. Replacement is blocked unless the preview is complete.',
       inputSchema: { ...commonFindSchema, replacement: z.string() },
       annotations: { title: 'Prepare Replace In Files', readOnlyHint: true, idempotentHint: true, destructiveHint: false }
     },
