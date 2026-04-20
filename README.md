@@ -6,10 +6,11 @@
 
 ```json
 {
-  "mcpServers": {
+  "mcp": {
     "find-replace": {
-      "command": "npx",
-      "args": ["-y", "github:john-walks-slow/find-replace-mcp"]
+      "command": ["npx", "-y", "github:john-walks-slow/find-replace-mcp"],
+      "enabled": true,
+      "type": "local"
     }
   }
 }
