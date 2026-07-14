@@ -2,27 +2,13 @@
 
 为 Agent 提供全局搜索替换能力，包含 find_in_files，prepare_replace_in_files，apply_replace_in_files 三个工具。
 
-## 安装
+## 配置示例
 
 ```json
 {
   "mcp": {
     "find-replace": {
       "command": "npx -y github:john-walks-slow/find-replace-mcp",
-      "enabled": true
-    }
-  }
-}
-```
-
-也可全局安装后直接使用：
-
-```json
-{
-  "mcp": {
-    "find-replace": {
-      "command": "smart-find-replace-mcp",
-      "enabled": true
     }
   }
 }
