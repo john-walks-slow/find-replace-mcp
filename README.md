@@ -8,9 +8,21 @@
 {
   "mcp": {
     "find-replace": {
-      "command": ["npx", "-y", "github:john-walks-slow/find-replace-mcp"],
-      "enabled": true,
-      "type": "local"
+      "command": "npx -y github:john-walks-slow/find-replace-mcp",
+      "enabled": true
+    }
+  }
+}
+```
+
+也可全局安装后直接使用：
+
+```json
+{
+  "mcp": {
+    "find-replace": {
+      "command": "smart-find-replace-mcp",
+      "enabled": true
     }
   }
 }
